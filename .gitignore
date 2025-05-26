@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+ragenv/
+
+# Python junk
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Data & vector stores
+data/
+embeddings/
+
+# Streamlit logs
+.streamlit/

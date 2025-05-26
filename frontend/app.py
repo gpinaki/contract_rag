@@ -256,9 +256,6 @@ def sidebar_ui():
             else:
                 process_uploaded_files(uploaded_files)
         
-        # Show statistics
-        show_upload_stats()
-        
         # Clear data button
         if st.sidebar.button("🗑️ Clear All Data", help="Remove all files and embeddings"):
             clear_all_data()
@@ -308,20 +305,6 @@ def process_uploaded_files(uploaded_files):
             except Exception as e:
                 st.session_state.processed_files[file_key] = "failed"
                 status_placeholder.error(f"❌ {uploaded_file.name} - Error")
-
-def show_upload_stats():
-    """Display upload statistics"""
-    if st.session_state.rag_engine:
-        stats = st.session_state.rag_engine.get_collection_stats()
-        
-        st.sidebar.markdown("---")
-        st.sidebar.markdown('<div class="sidebar-header">📊 Database Stats</div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.sidebar.columns(2)
-        with col1:
-            st.metric("Files", stats["total_files"])
-        with col2:
-            st.metric("Chunks", stats["total_chunks"])
 
 def clear_all_data():
     """Clear all data with confirmation"""
@@ -379,60 +362,43 @@ def main_chat_ui(config_ready):
         st.warning("⚠️ RAG engine not properly initialized. Please check the sidebar configuration.")
         return
     
-    # Simplified example queries - only 2 questions
-    with st.expander("💡 **Example Questions**", expanded=False):
-        examples = [
-            "Which contracts address Gen AI projects?",
-            "What is the supplier manager contact address for this contract?"
-        ]
-        
-        cols = st.columns(2)
-        for i, example in enumerate(examples):
-            with cols[i % 2]:
-                if st.button(f"💬 {example}", key=f"example_{i}"):
-                    process_query(example)
-    
-    # Chat History - simplified numbering
-    if st.session_state.chat_history:
-        with st.expander("📜 **Recent Conversations**", expanded=True):
-            for i, (query, response, sources) in enumerate(st.session_state.chat_history[-5:]):
-                # Simple numbering starting from 1
-                question_num = len(st.session_state.chat_history) - len(st.session_state.chat_history[-5:]) + i + 1
-                st.markdown(f"**🙋 Question {question_num}:** {query}")
-                st.markdown(f"**🤖 Answer:** {response}")
-                # Remove source citations display
-                if i < len(st.session_state.chat_history[-5:]) - 1:
-                    st.markdown("---")
-    
     # Query Input Section
     st.markdown("### 💬 Ask Your Question")
     
     col1, col2 = st.columns([4, 1])
     
     with col1:
-        # Clear the input after each query by using a session state counter
-        if "query_counter" not in st.session_state:
-            st.session_state.query_counter = 0
-            
         query = st.text_input(
             "Enter your contract question:",
             placeholder="e.g., How many contracts are expiring this year?",
             help="Ask about contract values, vendors, technologies, dates, etc.",
-            label_visibility="collapsed",
-            key=f"main_query_input_{st.session_state.query_counter}"
+            label_visibility="collapsed"
         )
     
     with col2:
         analyze_button = st.button("🔍 **Analyze**", type="primary", use_container_width=True)
     
-    # Process query on button click OR Enter key
-    if (analyze_button or query) and query.strip():
+    # Process query on button click only
+    if analyze_button and query.strip():
         process_query(query)
-        # Increment counter to clear the input field
-        st.session_state.query_counter += 1
-        st.rerun()
     elif analyze_button:
         st.warning("Please enter a question first.")
+    
+    # Chat History with pagination - show last 3 conversations
+    # Always show this section (even if empty) so answers appear immediately
+    with st.expander("📜 **Recent Conversations** (Last 3 conversations displayed)", expanded=True):
+        if st.session_state.chat_history:
+            # Show only last 3 conversations for better performance
+            recent_chats = st.session_state.chat_history[-3:]
+            for i, (query_hist, response, sources) in enumerate(recent_chats):
+                # Simple numbering starting from the actual position
+                question_num = len(st.session_state.chat_history) - len(recent_chats) + i + 1
+                st.markdown(f"**🙋 Question {question_num}:** {query_hist}")
+                st.markdown(f"**🤖 Answer:** {response}")
+                if i < len(recent_chats) - 1:
+                    st.markdown("---")
+        else:
+            st.info("💬 Your conversation history will appear here after you ask your first question.")
 
 def process_query(query: str):
     """Process user query and display response"""
@@ -458,14 +424,7 @@ def process_query(query: str):
             # Add to chat history
             st.session_state.chat_history.append((query, response, sources))
             
-            # Display response
-            st.markdown("### 🤖 Analysis Result")
-            
-            # Create response container - no source citations shown
-            with st.container():
-                st.markdown(response)
-            
-            # Auto-scroll by rerunning (optional - can be removed if causing issues)
+            # Force a rerun to immediately show the new conversation
             st.rerun()
             
         except Exception as e:
